@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <Arduino.h>
+#include "frame.h"
 
 
 #define MAX_RPM 6000
@@ -22,7 +23,11 @@ void engine_setup() {
 }
 
 void engine_loop() {
-    // Main loop of the engine
+    if(millis() - ultimo_invio_rpm >= 100){
+        aggiorna_rpm();
+        CanFrame frame;
+        frame->
+    }
 }
 
 void aggiorna_rpm() {
@@ -31,4 +36,12 @@ void aggiorna_rpm() {
     if (nuovo > MAX_RPM) nuovo = MAX_RPM;
     if (nuovo < MIN_RPM) nuovo = MIN_RPM;
     rpm_corrente = (uint16_t)nuovo;
+}
+
+void aggiorna_temperatura(uint16_t rpm){
+    if(rpm >= 3000){
+        if (temp_corrente < MAX_TEMP) temp_corrente++;
+    } else  {
+        if (temp_corrente > MIN_TEMP) temp_corrente--;
+    }
 }

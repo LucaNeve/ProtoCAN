@@ -13,6 +13,9 @@
 #define MSG_ID_ANOMALY              0x03
 #define MSG_ID_CMD                  0x10
 
+#define RPM_DATA_LEN                2  // uint16_t = 2 byte
+#define TEMP_DATA_LEN               1  // uint8_t  = 1 byte
+
 // --- Tipi di anomalia (DATA[0] nei frame ANOMALY) ---
 #define ANOMALY_NOISE               0x01
 #define ANOMALY_OUT_OF_RANGE        0x02
