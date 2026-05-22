@@ -35,6 +35,14 @@ void sensor_loop() {
         uint8_t n = serializza(&frame, buf);
 
         Serial.write(buf, n);
+        Serial.print("ANOMALY inviata: ");
+        switch (tipo)
+        {
+        case ANOMALY_NOISE:         Serial.println("NOISE");        break;
+        case ANOMALY_TIMEOUT:       Serial.println("TIMEOUT");      break;
+        case ANOMALY_OUT_OF_RANGE:  Serial.println("OUT_OF_RANGE"); break;
+        }
+        
         ultimo_invio_anomaly = millis();
         intervallo = random(1000,5000);
     }
