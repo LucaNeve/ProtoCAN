@@ -111,8 +111,40 @@ void parser_uart(){
 /**
  * Elabora un frame valido ricevuto dal parser.
  * Aggiorna lo stato globale del Dashboard e genera eventuali comandi.
- * TODO: da implementare
  */
 void elabora_frame(CanFrame* frame){
+    switch (frame->msg_id)
+    {
+    case MSG_ID_RPM:
+        rpm_attuale = (frame->data[0] << 8) | frame->data[1];
+        Serial.print("RPM: ");
+        Serial.println(rpm_attuale);
+        if(rpm_attuale > SOGLIA_RPM_ALLARME){
+            allarme_rpm = true;
+            Serial.println("ATTENZIONE: SOGLIA RPM SUPERATA");
+        }else{
+            allarme_rpm = false;
+        }
+        break;
+    case MSG_ID_TEMP:
+        temp_attuale = frame->data[0] & 0xFF;
+        Serial.print("TEMP: ");
+        Serial.println(temp_attuale);
+        if(temp_attuale > SOGLIA_TEMP_ALLARME){
+            allarme_temp = true;
+            Serial.println("ATTENZIONE: SOGLIA TEMPERATURA SUPERATA");
+        }else{
+            allarme_temp = false;
+        }
+        break;
+    case MSG_ID_ANOMALY:
+        /* code */
+        break;
+    case MSG_ID_CMD:
+        /* code */
+        break;
     
+    default:
+        break;
+    }
 }
