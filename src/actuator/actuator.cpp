@@ -29,6 +29,12 @@ void actuator_loop() {
     parser_uart();
 }
 
+/**
+ * Parser UART a macchina a stati.
+ * Identico al Dashboard — ricostruisce i frame protocan dal flusso UART.
+ * Frame corrotti o malformati vengono scartati silenziosamente.
+ * I frame validi vengono passati a elabora_frame().
+ */
 void parser_uart(){
     while(Serial.available()){
         uint8_t byte = Serial.read();
@@ -87,7 +93,11 @@ void parser_uart(){
     }
 }
 
-
+/**
+ * Elabora i frame CMD ricevuti dal Dashboard.
+ * Attiva il buzzer per allarme RPM, il LED per allarme temperatura.
+ * Tutti gli altri MSG_ID vengono ignorati.
+ */
 void elabora_frame(CanFrame* frame){
     if(frame->msg_id == MSG_ID_CMD){
         switch (frame->data[0])

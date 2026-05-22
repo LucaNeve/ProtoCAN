@@ -1,11 +1,12 @@
+## Stato attuale
 
-This directory is intended for PlatformIO Test Runner and project tests.
+I test automatici non sono ancora implementati.
+Il testing viene eseguito manualmente tramite Serial Monitor
+sui singoli nodi una volta disponibile l'hardware fisico.
 
-Unit Testing is a software testing method by which individual units of
-source code, sets of one or more MCU program modules together with associated
-control data, usage procedures, and operating procedures, are tested to
-determine whether they are fit for use. Unit testing finds problems early
-in the development cycle.
+## Test pianificati
 
-More information about PlatformIO Unit Testing:
-- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+- Validazione CRC — frame validi e corrotti
+- Serializzazione/deserializzazione — verifica round-trip
+- Parser UART — comportamento con frame incompleti o malformati
+- Soglie di allarme — verifica scatto e reset allarmi
