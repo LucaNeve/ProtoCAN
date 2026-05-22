@@ -24,3 +24,7 @@
 // --- Tipi di comando (DATA[0] nei frame CMD) --------
 #define CMD_ALARM_RPM               0x01
 #define CMD_ALARM_TEMP              0x02
+
+// --- Soglia allarme ---------------------------------
+#define SOGLIA_RPM_ALLARME          5000
+#define SOGLIA_TEMP_ALLARME         90  
