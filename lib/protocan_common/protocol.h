@@ -16,6 +16,7 @@
 #define RPM_DATA_LEN                2  // uint16_t = 2 byte
 #define TEMP_DATA_LEN               1  // uint8_t  = 1 byte
 #define ANOMALY_DATA_LEN            1
+#define CMD_DATA_LEN                1
 
 // --- Tipi di anomalia (DATA[0] nei frame ANOMALY) ---
 #define ANOMALY_NOISE               0x01

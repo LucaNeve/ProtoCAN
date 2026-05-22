@@ -18,8 +18,10 @@ enum StatoCorrente {
 // --- Stato globale della Dashboard ---------------------------
 static uint16_t rpm_attuale;
 static uint8_t  temp_attuale;
-static bool     allarme_rpm;
-static bool     allarme_temp;
+static bool allarme_rpm;
+static bool allarme_temp;
+static bool allarme_rpm_precedente;
+static bool allarme_temp_precedente;
 
 // --- Variabili di supporto del parser ------------------------
 static StatoCorrente stato = ATTESA_START;
@@ -36,6 +38,8 @@ void dashboard_setup() {
     temp_attuale = 0;
     allarme_rpm = false;
     allarme_temp = false;
+    allarme_rpm_precedente = false;
+    allarme_temp_precedente = false;
 }
 
 
@@ -125,17 +129,20 @@ void elabora_frame(CanFrame* frame){
         }else{
             allarme_rpm = false;
         }
+
         break;
     case MSG_ID_TEMP:
         temp_attuale = frame->data[0] & 0xFF;
         Serial.print("TEMP: ");
         Serial.println(temp_attuale);
+
         if(temp_attuale > SOGLIA_TEMP_ALLARME){
             allarme_temp = true;
             Serial.println("ATTENZIONE: SOGLIA TEMPERATURA SUPERATA");
         }else{
             allarme_temp = false;
         }
+
         break;
     case MSG_ID_ANOMALY:
         /* code */
@@ -147,4 +154,33 @@ void elabora_frame(CanFrame* frame){
     default:
         break;
     }
+
+    // In caso di allarme attivo invio il frame al nodo Actuator
+    if(allarme_rpm && !allarme_rpm_precedente){
+        CanFrame frameActuatorRpm;
+        frameActuatorRpm.msg_id = MSG_ID_CMD;
+        frameActuatorRpm.len = CMD_DATA_LEN;
+        frameActuatorRpm.data[0] = CMD_ALARM_RPM;
+
+        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t n = serializza(&frameActuatorRpm, buf);
+
+        Serial.write(buf, n);
+    }
+
+    if(allarme_temp && ! allarme_temp_precedente){
+        CanFrame frameActuatorTemp;
+        frameActuatorTemp.msg_id = MSG_ID_CMD;
+        frameActuatorTemp.len = CMD_DATA_LEN;
+        frameActuatorTemp.data[0] = CMD_ALARM_TEMP;
+
+        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t n = serializza(&frameActuatorTemp, buf);
+
+        Serial.write(buf, n);
+    }
+
+    allarme_rpm_precedente = allarme_rpm;
+    allarme_temp_precedente = allarme_temp;
+
 }
