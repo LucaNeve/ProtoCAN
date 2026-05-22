@@ -4,6 +4,7 @@
 #include "protocol.h"
 
 void elabora_frame(CanFrame* frame);
+static bool safe_write(uint8_t byte);
 
 // --- Macchina a stati del parser -----------------------------
 enum StatoCorrente {
@@ -16,6 +17,7 @@ enum StatoCorrente {
 };
 
 // --- Variabili di supporto del parser ------------------------
+static uint32_t timestamp_ultimo_byte = 0;
 static StatoCorrente stato = ATTESA_START;
 static uint8_t buf_frame[PROTO_MAX_DATA_LEN + 5];
 static uint8_t buf_index = 0;
@@ -42,16 +44,16 @@ void parser_uart(){
             case ATTESA_START:
                 if(byte == PROTO_START_BYTE){
                     buf_index = 0;
-                    buf_frame[buf_index++] = byte; //Scrive in posizione 0, poi buf_index diventa 1
+                    if(!safe_write(byte)) break; //Scrive in posizione 0, poi buf_index diventa 1
                     stato = LETTURA_ID; 
                 }
                 break;
             case LETTURA_ID:
-                buf_frame[buf_index++] = byte;
+                if(!safe_write(byte)) break;
                 stato = LETTURA_LUNGHEZZA;
                 break;
             case LETTURA_LUNGHEZZA:
-                buf_frame[buf_index++] = byte;
+                if(!safe_write(byte)) break;
                 dati_attesi = byte;
 
                 if(dati_attesi > PROTO_MAX_DATA_LEN){
@@ -63,7 +65,7 @@ void parser_uart(){
 
                 break;
             case LETTURA_DATI:
-                buf_frame[buf_index++] = byte;
+                if(!safe_write(byte)) break;
                 dati_attesi--;
 
                 if(dati_attesi == 0)
@@ -71,13 +73,13 @@ void parser_uart(){
 
                 break;
             case LETTURA_CRC:
-                buf_frame[buf_index++] = byte;
+                if(!safe_write(byte)) break;
                 stato = VERIFICA_END;
                 break;
             case VERIFICA_END:
                 CanFrame frame;
                 if(byte == PROTO_END_BYTE){
-                    buf_frame[buf_index++] = byte;
+                    if(!safe_write(byte)) break;
                     if(deserializza(buf_frame, buf_index, &frame))
                         elabora_frame(&frame);  // frame valido, passa all'elaborazione
                 }
@@ -112,4 +114,24 @@ void elabora_frame(CanFrame* frame){
             break;
         }
     }
+}
+
+/**
+ * Scrive un byte nel buffer del frame in costruzione.
+ * Controlla che buf_index non superi la dimensione massima del buffer
+ * prima di scrivere — protegge da overflow in caso di frame malformati
+ * o rumore sulla linea UART.
+ * In caso di overflow resetta il parser ad ATTESA_START.
+ *
+ * @param byte  byte da scrivere nel buffer
+ * @return      true se la scrittura è avvenuta, false se overflow rilevato
+ */
+static bool safe_write(uint8_t byte) {
+    if (buf_index >= sizeof(buf_frame)) {
+        stato     = ATTESA_START;
+        buf_index = 0;
+        return false;
+    }
+    buf_frame[buf_index++] = byte;
+    return true;
 }
