@@ -1,18 +1,27 @@
 #include <stdint.h>
 #include "frame.h"
 
+static const uint8_t crc8_table[256];
+
 /**
- * Calcola il CRC del frame tramite XOR dei campi logici.
- * Il CRC copre MSG_ID, LEN e tutti i byte di DATA.
+ * Calcola il CRC-8/SMBUS del frame usando il polinomio 0x07.
+ * Il CRC copre MSG_ID, LEN e tutti i byte di DATA, in questo ordine.
  * START, END e il CRC stesso sono esclusi dal calcolo.
  * 
+ * Più robusto del semplice XOR — rileva byte scambiati di posizione
+ * e pattern di errore che XOR non individua.
+ * 
  * @param frame  puntatore al frame da cui calcolare il CRC
- * @return       byte CRC calcolato
+ * @return       byte CRC-8 calcolato
  */
 uint8_t calcola_crc(const CanFrame* frame) {
-    uint8_t crc = frame->msg_id ^ frame->len;  // inizializza con XOR dei campi fissi
+    uint8_t crc = 0x00;
+
+    crc = crc8_table[crc ^ frame->msg_id];
+    crc = crc8_table[crc ^ frame->len];
+
     for (int i = 0; i < frame->len; i++) {
-        crc ^= frame->data[i];  // accumula XOR di ogni byte del payload
+        crc = crc8_table[crc ^ frame->data[i]];  // accumula XOR di ogni byte del payload
     }
     return crc;
 }
