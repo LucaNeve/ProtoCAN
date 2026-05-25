@@ -6,6 +6,7 @@
 // --- Struttura del frame di comunicazione ---
 typedef struct {
     uint8_t msg_id;
+    uint8_t seq;
     uint8_t len;
     uint8_t data[PROTO_MAX_DATA_LEN];
     uint8_t crc;

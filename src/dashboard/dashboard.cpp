@@ -11,6 +11,7 @@ static bool safe_write(uint8_t byte);
 enum StatoCorrente {
     ATTESA_START,
     LETTURA_ID,
+    LETTURA_SEQ,
     LETTURA_LUNGHEZZA,
     LETTURA_DATI,
     LETTURA_CRC,
@@ -28,9 +29,19 @@ static bool allarme_temp_precedente;
 
 // --- Variabili di supporto del parser ------------------------
 static StatoCorrente stato = ATTESA_START;
-static uint8_t buf_frame[PROTO_MAX_DATA_LEN + 5];
+static uint8_t buf_frame[PROTO_MAX_DATA_LEN + 6];
 static uint8_t buf_index = 0;
 static uint8_t dati_attesi = 0;
+static uint8_t seq_cmd = 0;
+
+
+// variabili statiche per ogni MSG_ID
+static uint8_t last_seq_rpm     = 0;
+static uint8_t last_seq_temp    = 0;
+static uint8_t last_seq_anomaly = 0;
+static bool first_rpm        = true;
+static bool first_temp       = true;
+static bool first_anomaly    = true;
 
 /**
  * Inizializza la UART e lo stato interno del Dashboard.
@@ -76,6 +87,10 @@ void parser_uart(){
                 }
                 break;
             case LETTURA_ID:
+                if(!safe_write(byte)) break;
+                stato = LETTURA_SEQ;
+                break;
+            case LETTURA_SEQ:
                 if(!safe_write(byte)) break;
                 stato = LETTURA_LUNGHEZZA;
                 break;
@@ -130,6 +145,22 @@ void elabora_frame(CanFrame* frame){
     switch (frame->msg_id)
     {
     case MSG_ID_RPM:
+        if(!first_rpm){
+            uint8_t atteso = last_seq_rpm + 1; // uint8_8 -> overflow automatico
+            if(frame->seq != atteso){
+                uint8_t persi = frame->seq - last_seq_rpm - 1;
+                Serial.print("RPM: persi ");
+                Serial.print(persi);
+                Serial.print(" frame tra SEQ ");
+                Serial.print(last_seq_rpm);
+                Serial.print(" e SEQ ");
+                Serial.println(frame->seq);
+
+            }
+        }
+        last_seq_rpm = frame->seq;
+        first_rpm = false;
+
         rpm_attuale = (frame->data[0] << 8) | frame->data[1];
         Serial.print("RPM: ");
         Serial.println(rpm_attuale);
@@ -142,6 +173,22 @@ void elabora_frame(CanFrame* frame){
 
         break;
     case MSG_ID_TEMP:
+        if(!first_temp){
+            uint8_t atteso = last_seq_temp + 1; // uint8_8 -> overflow automatico
+            if(frame->seq != atteso){
+                uint8_t persi = frame->seq - last_seq_temp - 1;
+                Serial.print("TEMP: persi ");
+                Serial.print(persi);
+                Serial.print(" frame tra SEQ ");
+                Serial.print(last_seq_temp);
+                Serial.print(" e SEQ ");
+                Serial.println(frame->seq);
+
+            }
+        }
+        last_seq_temp = frame->seq;
+        first_temp = false;
+        
         temp_attuale = frame->data[0] & 0xFF;
         Serial.print("TEMP: ");
         Serial.println(temp_attuale);
@@ -155,7 +202,28 @@ void elabora_frame(CanFrame* frame){
 
         break;
     case MSG_ID_ANOMALY:
-        /* code */
+        if(!first_anomaly){
+            uint8_t atteso = last_seq_anomaly + 1;
+            if(frame->seq != atteso){
+            uint8_t persi = frame->seq - last_seq_anomaly - 1;
+            Serial.print("ANOMALY: persi ");
+            Serial.print(persi);
+            Serial.print(" frame tra SEQ ");
+            Serial.print(last_seq_anomaly);
+            Serial.print(" e SEQ ");
+            Serial.println(frame->seq);
+            }
+        }
+        last_seq_anomaly = frame->seq;
+        first_anomaly    = false;
+
+        Serial.print("ANOMALIA ricevuta: ");
+        switch(frame->data[0]){
+            case ANOMALY_NOISE:        Serial.println("NOISE");         break;
+            case ANOMALY_OUT_OF_RANGE: Serial.println("OUT_OF_RANGE");  break;
+            case ANOMALY_TIMEOUT:      Serial.println("TIMEOUT");       break;
+            default:                   Serial.println("SCONOSCIUTA");   break;
+        }
         break;
     case MSG_ID_CMD:
         /* code */
@@ -169,10 +237,11 @@ void elabora_frame(CanFrame* frame){
     if(allarme_rpm && !allarme_rpm_precedente){
         CanFrame frameActuatorRpm;
         frameActuatorRpm.msg_id = MSG_ID_CMD;
+        frameActuatorRpm.seq = seq_cmd++;
         frameActuatorRpm.len = CMD_DATA_LEN;
         frameActuatorRpm.data[0] = CMD_ALARM_RPM;
 
-        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t buf[PROTO_MAX_DATA_LEN + 6];
         uint8_t n = serializza(&frameActuatorRpm, buf);
 
         Serial.write(buf, n);
@@ -181,10 +250,11 @@ void elabora_frame(CanFrame* frame){
     if(allarme_temp && ! allarme_temp_precedente){
         CanFrame frameActuatorTemp;
         frameActuatorTemp.msg_id = MSG_ID_CMD;
+        frameActuatorTemp.seq = seq_cmd++;
         frameActuatorTemp.len = CMD_DATA_LEN;
         frameActuatorTemp.data[0] = CMD_ALARM_TEMP;
 
-        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t buf[PROTO_MAX_DATA_LEN + 6];
         uint8_t n = serializza(&frameActuatorTemp, buf);
 
         Serial.write(buf, n);

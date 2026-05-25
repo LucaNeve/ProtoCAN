@@ -1,7 +1,34 @@
 #include <stdint.h>
 #include "frame.h"
 
-static const uint8_t crc8_table[256];
+static uint8_t crc8_table[256];
+static bool table_inizializzata = false;
+
+/**
+ * Genera a runtime la lookup table per il calcolo CRC-8/SMBUS.
+ * Usa il polinomio generatore 0x07 (x⁸ + x² + x + 1).
+ * 
+ * Per ogni valore possibile di un byte (0-255) simula la divisione
+ * polinomiale bit per bit — se il bit più alto è 1 c'è un resto,
+ * si applica XOR con il polinomio; se è 0 si shifta e basta.
+ * 
+ * Va chiamata una sola volta prima di usare calcola_crc().
+ * Il risultato viene salvato in crc8_table[256].
+ */
+static void inizializza_tabella() {
+    for (int i = 0; i < 256; i++) {
+        uint8_t crc = i;
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ 0x07;
+            } else {
+                crc <<= 1;
+            }
+        }
+        crc8_table[i] = crc;
+    }
+    table_inizializzata = true;
+}
 
 /**
  * Calcola il CRC-8/SMBUS del frame usando il polinomio 0x07.
@@ -15,9 +42,12 @@ static const uint8_t crc8_table[256];
  * @return       byte CRC-8 calcolato
  */
 uint8_t calcola_crc(const CanFrame* frame) {
+    if (!table_inizializzata) inizializza_tabella();
+
     uint8_t crc = 0x00;
 
     crc = crc8_table[crc ^ frame->msg_id];
+    crc = crc8_table[crc ^ frame->seq];
     crc = crc8_table[crc ^ frame->len];
 
     for (int i = 0; i < frame->len; i++) {
@@ -31,7 +61,7 @@ uint8_t calcola_crc(const CanFrame* frame) {
  * Il buffer di output deve essere allocato dal chiamante con dimensione
  * minima di PROTO_MAX_DATA_LEN + 5 byte.
  * 
- * Formato prodotto: [START][MSG_ID][LEN][DATA...][CRC][END]
+ * Formato prodotto: [START][MSG_ID][SEQ][LEN][DATA...][CRC][END]
  * 
  * @param frame    puntatore al frame da serializzare
  * @param buf_out  buffer di output dove scrivere i byte
@@ -40,16 +70,17 @@ uint8_t calcola_crc(const CanFrame* frame) {
 uint8_t serializza(const CanFrame* frame, uint8_t* buf_out) {
     buf_out[0] = PROTO_START_BYTE;  // marcatore di inizio frame
     buf_out[1] = frame->msg_id;     // identificatore tipo messaggio
-    buf_out[2] = frame->len;        // lunghezza del payload DATA
+    buf_out[2] = frame->seq;        // sequenza del frame
+    buf_out[3] = frame->len;        // lunghezza del payload DATA
 
     for (int i = 0; i < frame->len; i++) {
-        buf_out[i + 3] = frame->data[i];  // copia il payload byte per byte
+        buf_out[i + 4] = frame->data[i];  // copia il payload byte per byte
     }
 
-    buf_out[frame->len + 3] = calcola_crc(frame);  // CRC calcolato sul frame logico
-    buf_out[frame->len + 4] = PROTO_END_BYTE;       // marcatore di fine frame
+    buf_out[frame->len + 4] = calcola_crc(frame);  // CRC calcolato sul frame logico
+    buf_out[frame->len + 5] = PROTO_END_BYTE;       // marcatore di fine frame
 
-    return frame->len + 5;  // totale byte: START + MSG_ID + LEN + DATA + CRC + END
+    return frame->len + 6;  // totale byte: START + MSG_ID + SEQ + LEN + DATA + CRC + END
 }
 
 /**
@@ -63,8 +94,8 @@ uint8_t serializza(const CanFrame* frame, uint8_t* buf_out) {
  */
 bool deserializza(const uint8_t* buf,uint8_t len, CanFrame* out){
 
-    // lunghezza minima: START + MSG_ID + LEN + CRC + END = 5 byte
-    if (len < 5) return false;
+    // lunghezza minima: START + MSG_ID + SEQ + LEN + CRC + END = 6 byte
+    if (len < 6) return false;
 
     // verifica byte di sincronizzazione
     if (buf[0] != PROTO_START_BYTE) return false;
@@ -72,19 +103,20 @@ bool deserializza(const uint8_t* buf,uint8_t len, CanFrame* out){
 
     // estrae i campi fissi
     out->msg_id = buf[1];
-    out->len    = buf[2];
+    out->seq    = buf[2];
+    out->len    = buf[3];
 
     // verifica che la lunghezza dichiarata sia coerente con il buffer ricevuto
     if (out->len > PROTO_MAX_DATA_LEN) return false; // lunghezza data
-    if (len != out->len + 5) return false;           // lunghezza intero frame
+    if (len != out->len + 6) return false;           // lunghezza intero frame
 
     // copia il payload
     for (int i = 0; i < out->len; i++) {
-        out->data[i] = buf[i + 3];
+        out->data[i] = buf[i + 4];
     }
 
     // estrae il CRC ricevuto e lo confronta con quello ricalcolato
-    out->crc = buf[out->len + 3];
+    out->crc = buf[out->len + 4];
     if (out->crc != calcola_crc(out)) return false;
 
     return true;
