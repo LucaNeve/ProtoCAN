@@ -14,6 +14,9 @@ static uint8_t  temp_corrente;
 static uint32_t ultimo_invio_rpm;   // timestamp ultimo frame RPM inviato
 static uint32_t ultimo_invio_temp;  // timestamp ultimo frame TEMP inviato
 
+static uint8_t seq_rpm  = 0;
+static uint8_t seq_temp = 0;
+
 
 // Inizializzazione della UART e del nodo Engine
 void engine_setup() {
@@ -66,12 +69,13 @@ void engine_loop() {
 
         CanFrame frame;
         frame.msg_id = MSG_ID_RPM;
+        frame.seq = seq_rpm++;
         frame.len = RPM_DATA_LEN;
         frame.data[0] = (rpm_corrente >> 8) & 0xFF;
         frame.data[1] = rpm_corrente & 0xFF;
         frame.crc = calcola_crc(&frame);
 
-        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t buf[PROTO_MAX_DATA_LEN + 6];
         uint8_t n = serializza(&frame, buf);
 
         Serial.write(buf, n);
@@ -84,11 +88,12 @@ void engine_loop() {
 
         CanFrame frame;
         frame.msg_id = MSG_ID_TEMP;
+        frame.seq = seq_temp++;
         frame.len = TEMP_DATA_LEN;
         frame.data[0] = temp_corrente;
         frame.crc = calcola_crc(&frame);
 
-        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t buf[PROTO_MAX_DATA_LEN + 6];
         uint8_t n = serializza(&frame, buf);
 
         Serial.write(buf, n);

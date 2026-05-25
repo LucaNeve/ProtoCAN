@@ -10,6 +10,7 @@ static bool safe_write(uint8_t byte);
 enum StatoCorrente {
     ATTESA_START,
     LETTURA_ID,
+    LETTURA_SEQ,
     LETTURA_LUNGHEZZA,
     LETTURA_DATI,
     LETTURA_CRC,
@@ -19,7 +20,7 @@ enum StatoCorrente {
 // --- Variabili di supporto del parser ------------------------
 static uint32_t timestamp_ultimo_byte = 0;
 static StatoCorrente stato = ATTESA_START;
-static uint8_t buf_frame[PROTO_MAX_DATA_LEN + 5];
+static uint8_t buf_frame[PROTO_MAX_DATA_LEN + 6];
 static uint8_t buf_index = 0;
 static uint8_t dati_attesi = 0;
 
@@ -39,6 +40,12 @@ void actuator_loop() {
  */
 void parser_uart(){
     while(Serial.available()){
+        if (millis() - timestamp_ultimo_byte > 100) {
+            stato     = ATTESA_START;
+            buf_index = 0;
+        }
+        timestamp_ultimo_byte = millis();
+
         uint8_t byte = Serial.read();
         switch (stato){
             case ATTESA_START:
@@ -50,13 +57,17 @@ void parser_uart(){
                 break;
             case LETTURA_ID:
                 if(!safe_write(byte)) break;
+                stato = LETTURA_SEQ;
+                break;
+            case LETTURA_SEQ:
+                if(!safe_write(byte)) break;
                 stato = LETTURA_LUNGHEZZA;
                 break;
             case LETTURA_LUNGHEZZA:
                 if(!safe_write(byte)) break;
                 dati_attesi = byte;
 
-                if(dati_attesi > PROTO_MAX_DATA_LEN){
+                if(dati_attesi == 0 || dati_attesi > PROTO_MAX_DATA_LEN){
                     stato = ATTESA_START;   // LEN fuori range, frame corrotto
                     buf_index = 0;
                 }else{

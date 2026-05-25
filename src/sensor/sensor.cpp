@@ -10,6 +10,9 @@ const uint8_t anomalie[3] = {ANOMALY_NOISE, ANOMALY_OUT_OF_RANGE, ANOMALY_TIMEOU
 static uint32_t ultimo_invio_anomaly; // timestamp ultimo invio
 static uint8_t  intervallo;           // intervallo random tra un invio e l'altro
 
+static uint8_t seq_anomaly  = 0;
+
+
 void sensor_setup() {
     Serial.begin(115200);
     randomSeed(analogRead(0));
@@ -27,11 +30,12 @@ void sensor_loop() {
         CanFrame frame;
 
         frame.msg_id = MSG_ID_ANOMALY;
+        frame.seq = seq_anomaly++;
         frame.len = ANOMALY_DATA_LEN;
         frame.data[0] = tipo;
         frame.crc = calcola_crc(&frame);
 
-        uint8_t buf[PROTO_MAX_DATA_LEN + 5];
+        uint8_t buf[PROTO_MAX_DATA_LEN + 6];
         uint8_t n = serializza(&frame, buf);
 
         Serial.write(buf, n);
